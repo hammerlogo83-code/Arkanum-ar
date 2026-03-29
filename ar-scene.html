@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>🔮 ARKANUM – AR Scanner</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #c9a84c;
+      --gold-light: #f0d080;
+      --deep: #0a0612;
+      --purple: #2a0a4a;
+      --rune: #7c3aed;
+      --glow: #a855f7;
+    }
+
+    body { overflow: hidden; background: #000; font-family: 'Cormorant Garamond', serif; }
+
+    /* A-Frame nimmt den ganzen Screen */
+    a-scene { position: fixed; inset: 0; }
+
+    /* ── HUD ─────────────────────────────────── */
+    #hud {
+      position: fixed; inset: 0; z-index: 50; pointer-events: none;
+    }
+    .hud-corner {
+      position: absolute; width: 32px; height: 32px;
+      border-color: var(--gold); border-style: solid; opacity: 0.6;
+    }
+    .hud-corner.tl { top:14px; left:14px; border-width:2px 0 0 2px; }
+    .hud-corner.tr { top:14px; right:14px; border-width:2px 2px 0 0; }
+    .hud-corner.bl { bottom:14px; left:14px; border-width:0 0 2px 2px; }
+    .hud-corner.br { bottom:14px; right:14px; border-width:0 2px 2px 0; }
+
+    .hud-title {
+      position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      font-family: 'Cinzel Decorative', cursive; font-size: 0.65rem;
+      letter-spacing: 0.2em; color: var(--gold); opacity: 0.8;
+      white-space: nowrap; text-transform: uppercase;
+    }
+
+    .scan-ring {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 180px; height: 180px;
+      border: 1.5px solid rgba(201,168,76,0.35);
+      border-radius: 50%;
+      animation: spin-ring 6s linear infinite;
+    }
+    .scan-ring::before {
+      content:'';
+      position: absolute; inset: 12px;
+      border: 1px dashed rgba(168,85,247,0.4);
+      border-radius: 50%;
+      animation: spin-ring 4s linear infinite reverse;
+    }
+    @keyframes spin-ring { to { transform: rotate(360deg); } }
+
+    .scan-hint {
+      position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%);
+      font-style: italic; font-size: 0.95rem;
+      color: rgba(232,213,183,0.85);
+      background: rgba(10,6,18,0.72);
+      padding: 0.45rem 1.1rem;
+      border: 1px solid rgba(201,168,76,0.25);
+      white-space: nowrap;
+      animation: pulse-hint 2.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes pulse-hint { 0%,100%{opacity:.55} 50%{opacity:1} }
+
+    /* progress dots */
+    #rune-dots {
+      position: absolute; top: 48px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 8px;
+    }
+    .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      border: 1.5px solid rgba(201,168,76,0.5);
+      background: transparent;
+      transition: all 0.4s;
+    }
+    .dot.lit {
+      background: var(--gold);
+      box-shadow: 0 0 8px var(--gold);
+    }
+
+    /* ── FOUND PANEL ─────────────────────────── */
+    #found-panel {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      background: linear-gradient(0deg, rgba(10,6,18,0.97) 0%, rgba(42,10,74,0.92) 100%);
+      border-top: 1px solid rgba(201,168,76,0.4);
+      padding: 1.4rem 1.2rem 1.6rem;
+      transform: translateY(100%);
+      transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+      pointer-events: all;
+    }
+    #found-panel.show { transform: translateY(0); }
+
+    .panel-icon { font-size: 2rem; text-align:center; margin-bottom:0.3rem; filter: drop-shadow(0 0 10px var(--glow)); animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .panel-title { font-family:'Cinzel Decorative',cursive; font-size:0.85rem; color:var(--gold-light); text-align:center; letter-spacing:.1em; margin-bottom:.4rem; }
+    .panel-hint  { font-style:italic; font-size:1rem; color:#c8b090; text-align:center; line-height:1.65; margin-bottom:.8rem; }
+    .panel-code  {
+      background:rgba(124,58,237,.2); border:1px solid var(--rune); border-radius:2px;
+      padding:.5rem 1rem; text-align:center; font-family:monospace;
+      font-size:1.4rem; letter-spacing:.35em; color:var(--glow);
+      text-shadow:0 0 10px var(--glow); margin-bottom:.9rem;
+    }
+    .btn-close {
+      display:block; width:100%;
+      font-family:'Cinzel Decorative',cursive; font-size:.72rem;
+      letter-spacing:.15em; text-transform:uppercase;
+      background:transparent; border:1px solid rgba(201,168,76,.4);
+      color:var(--gold); padding:.65rem; cursor:pointer; transition:all .2s;
+    }
+    .btn-close:hover { background:rgba(201,168,76,.08); }
+
+    /* ── VICTORY ─────────────────────────────── */
+    #victory-screen {
+      display: none;
+      position: fixed; inset: 0; z-index: 200;
+      background: radial-gradient(ellipse at 50% 40%, #2a0a4a 0%, #0a0612 70%);
+      align-items: center; justify-content: center; flex-direction: column;
+      padding: 2rem; text-align: center;
+    }
+    #victory-screen.show { display: flex; }
+
+    .victory-sigil { font-size: 4rem; margin-bottom: 1rem; animation: float 3s ease-in-out infinite; filter: drop-shadow(0 0 20px gold); }
+    .victory-title { font-family:'Cinzel Decorative',cursive; font-size:1.3rem; color:var(--gold-light); text-shadow:0 0 30px var(--glow); margin-bottom:.6rem; }
+    .victory-word  { font-size:2rem; letter-spacing:.5em; color:var(--glow); text-shadow:0 0 20px var(--glow); margin: 1rem 0; }
+    .victory-desc  { font-style:italic; font-size:1rem; color:#c8b090; line-height:1.7; max-width:340px; }
+
+    /* ── PARTICLES ───────────────────────────── */
+    .particle {
+      position:fixed; pointer-events:none; z-index:300;
+      width:6px; height:6px; border-radius:50%;
+      animation: burst .9s ease-out forwards;
+    }
+    @keyframes burst { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0} }
+
+    /* ── INTRO OVERLAY ───────────────────────── */
+    #intro {
+      position: fixed; inset: 0; z-index: 150;
+      background: radial-gradient(ellipse at 50% 40%, #1a0533 0%, #0a0612 80%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 2rem; text-align: center;
+    }
+    .intro-sigil { font-size: 3.5rem; margin-bottom: 1rem; filter: drop-shadow(0 0 15px var(--glow)); animation: float 4s ease-in-out infinite; }
+    .intro-title { font-family:'Cinzel Decorative',cursive; font-size:1.5rem; color:var(--gold-light); text-shadow:0 0 20px var(--glow); margin-bottom:.5rem; }
+    .intro-sub   { font-style:italic; color:#b89a6a; margin-bottom:1.5rem; letter-spacing:.1em; }
+    .intro-steps { max-width:380px; text-align:left; margin-bottom:2rem; }
+    .intro-step  { display:flex; gap:.8rem; align-items:flex-start; margin-bottom:.8rem; font-size:.95rem; color:#c8b090; line-height:1.5; }
+    .step-num    { font-family:'Cinzel Decorative',cursive; color:var(--gold); font-size:.75rem; margin-top:.15rem; min-width:1.4rem; }
+    .btn-start   {
+      font-family:'Cinzel Decorative',cursive; font-size:.8rem;
+      letter-spacing:.15em; text-transform:uppercase;
+      color:var(--deep); background:linear-gradient(135deg,var(--gold),var(--gold-light),var(--gold));
+      border:none; padding:.9rem 2.2rem; cursor:pointer;
+      box-shadow:0 0 30px rgba(201,168,76,.45); transition:all .3s;
+    }
+    .btn-start:hover { box-shadow:0 0 50px rgba(201,168,76,.7); transform:translateY(-2px); }
+
+    /* ── PERMISSION ERROR ────────────────────── */
+    #perm-error {
+      display: none;
+      position: fixed; inset: 0; z-index: 160;
+      background: rgba(10,6,18,.95);
+      align-items: center; justify-content: center; flex-direction: column;
+      padding: 2rem; text-align: center; gap: 1rem;
+    }
+    #perm-error.show { display: flex; }
+    #perm-error p { font-style:italic; color:#c8b090; max-width:320px; line-height:1.7; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════ INTRO ═══════ -->
+<div id="intro">
+  <div class="intro-sigil">🔮</div>
+  <div class="intro-title">ARKANUM</div>
+  <div class="intro-sub">Das Magische Tor</div>
+
+  <div class="intro-steps">
+    <div class="intro-step">
+      <span class="step-num">I.</span>
+      <span>Erlaube den Kamera-Zugriff wenn der Browser danach fragt.</span>
+    </div>
+    <div class="intro-step">
+      <span class="step-num">II.</span>
+      <span>Richte die Kamera auf einen <strong style="color:var(--gold)">Hiro-Marker</strong> (schwarz-weißes Bild).</span>
+    </div>
+    <div class="intro-step">
+      <span class="step-num">III.</span>
+      <span>Ein magisches Artefakt erscheint – lese die Botschaft und merke dir den Runen-Code.</span>
+    </div>
+    <div class="intro-step">
+      <span class="step-num">IV.</span>
+      <span>Finde alle 4 Runen und sprich das Siegelwort.</span>
+    </div>
+  </div>
+
+  <button class="btn-start" onclick="startAR()">✦ Kamera aktivieren ✦</button>
+</div>
+
+<!-- ═══════ KAMERA FEHLER ═══════ -->
+<div id="perm-error">
+  <div style="font-size:2rem">📷</div>
+  <div style="font-family:'Cinzel Decorative',cursive;color:var(--gold)">Kamera verweigert</div>
+  <p>Bitte erlaube den Kamera-Zugriff in deinen Browser-Einstellungen und lade die Seite neu.</p>
+  <button class="btn-close" style="max-width:240px" onclick="location.reload()">Neu laden</button>
+</div>
+
+<!-- ═══════ AR SCENE ═══════ -->
+<a-scene
+  id="ar-scene"
+  embedded
+  arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+  renderer="logarithmicDepthBuffer: true; antialias: true;"
+  vr-mode-ui="enabled: false"
+  style="display:none"
+>
+
+  <!-- ── MARKER 1: HIRO – Kristall-Rune ── -->
+  <a-marker preset="hiro" id="marker-hiro" emitevents="true">
+    <!-- Glühender Kristall -->
+    <a-entity position="0 0.5 0" animation="property:rotation; to:0 360 0; loop:true; dur:4000; easing:linear">
+      <a-octahedron color="#a855f7" radius="0.3" material="emissive:#7c3aed;emissiveIntensity:0.8;opacity:0.9;transparent:true;metalness:0.3;roughness:0.2" shadow></a-octahedron>
+    </a-entity>
+    <!-- Partikelring -->
+    <a-torus position="0 0.1 0" radius="0.5" radius-tubular="0.01" color="#c9a84c"
+      material="emissive:#c9a84c;emissiveIntensity:0.6;opacity:0.6;transparent:true"
+      animation="property:rotation; from:0 0 0; to:0 360 0; loop:true; dur:6000; easing:linear">
+    </a-torus>
+    <!-- Text -->
+    <a-text value="Kristall-Rune" position="0 1.1 0" align="center" color="#f0d080" width="2.5" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"></a-text>
+    <a-text value="ᚨᛖᛏ" position="0 0.85 0" align="center" color="#a855f7" width="3" scale="1.3 1.3 1.3"></a-text>
+  </a-marker>
+
+  <!-- ── MARKER 2: KANJI – Pergament ── -->
+  <a-marker type="pattern" url="https://raw.githack.com/AR-js-org/AR.js/master/data/data/patt.kanji" id="marker-kanji" emitevents="true">
+    <a-entity position="0 0.5 0" animation="property:rotation; to:0 360 0; loop:true; dur:5000; easing:linear">
+      <a-box color="#c9a84c" width="0.4" height="0.5" depth="0.05"
+        material="emissive:#a87030;emissiveIntensity:0.5;opacity:0.9;transparent:true"
+        shadow>
+      </a-box>
+    </a-entity>
+    <a-sphere position="0 0.1 0" radius="0.05" color="#f0d080"
+      animation__1="property:position; from: -0.4 0.1 0; to: 0.4 0.1 0; loop:true; dur:2000; dir:alternate; easing:easeInOutSine"
+      material="emissive:#f0d080;emissiveIntensity:1">
+    </a-sphere>
+    <a-text value="Altes Pergament" position="0 1.1 0" align="center" color="#f0d080" width="2.5" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"></a-text>
+    <a-text value="ᛖᚱᚾ" position="0 0.85 0" align="center" color="#a855f7" width="3" scale="1.3 1.3 1.3"></a-text>
+  </a-marker>
+
+  <!-- ── MARKER 3: LETTERF – Geisterschlüssel ── -->
+  <a-marker type="pattern" url="https://raw.githack.com/AR-js-org/AR.js/master/data/data/patt.letterF" id="marker-letterF" emitevents="true">
+    <a-entity position="0 0.5 0">
+      <a-cylinder color="#7c3aed" radius="0.08" height="0.6"
+        material="emissive:#5b21b6;emissiveIntensity:0.7;opacity:0.95;transparent:true"
+        shadow
+        animation="property:rotation; to:0 360 0; loop:true; dur:3000; easing:linear">
+      </a-cylinder>
+      <a-sphere position="0 0.4 0" radius="0.12" color="#a855f7"
+        material="emissive:#7c3aed;emissiveIntensity:0.8;opacity:0.9;transparent:true">
+      </a-sphere>
+    </a-entity>
+    <a-torus position="0 0.1 0" radius="0.45" radius-tubular="0.015" color="#7c3aed"
+      material="emissive:#5b21b6;emissiveIntensity:0.5;opacity:0.5;transparent:true"
+      animation="property:rotation; from:90 0 0; to:90 360 0; loop:true; dur:4000; easing:linear">
+    </a-torus>
+    <a-text value="Geisterschluessel" position="0 1.1 0" align="center" color="#f0d080" width="2.5" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"></a-text>
+    <a-text value="ᛁᛏᚨ" position="0 0.85 0" align="center" color="#a855f7" width="3" scale="1.3 1.3 1.3"></a-text>
+  </a-marker>
+
+  <!-- ── MARKER 4: CUSTOM QR-artig (barcode 4) – Elixier ── -->
+  <a-marker type="barcode" value="4" id="marker-barcode4" emitevents="true">
+    <a-entity position="0 0.4 0">
+      <!-- Phiole aus Zylindern -->
+      <a-cylinder position="0 0.1 0" radius="0.12" height="0.35" color="#10b981"
+        material="emissive:#059669;emissiveIntensity:0.5;opacity:0.7;transparent:true"
+        shadow>
+      </a-cylinder>
+      <a-cylinder position="0 0.38 0" radius="0.05" height="0.15" color="#6ee7b7"
+        material="emissive:#34d399;emissiveIntensity:0.6;opacity:0.9;transparent:true">
+      </a-cylinder>
+      <!-- Blasen -->
+      <a-sphere position="0 0.22 0" radius="0.04" color="#a7f3d0"
+        material="emissive:#6ee7b7;emissiveIntensity:1;opacity:0.8;transparent:true"
+        animation="property:position; from:0 0.1 0; to:0 0.45 0; loop:true; dur:1500; easing:easeInSine">
+      </a-sphere>
+    </a-entity>
+    <a-text value="Elixier-Phiole" position="0 1.1 0" align="center" color="#f0d080" width="2.5" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"></a-text>
+    <a-text value="ᛋ" position="0 0.85 0" align="center" color="#a855f7" width="3" scale="1.3 1.3 1.3"></a-text>
+  </a-marker>
+
+  <a-entity camera></a-entity>
+</a-scene>
+
+<!-- ═══════ HUD ═══════ -->
+<div id="hud" style="display:none">
+  <div class="hud-corner tl"></div>
+  <div class="hud-corner tr"></div>
+  <div class="hud-corner bl"></div>
+  <div class="hud-corner br"></div>
+  <div class="hud-title">✦ ARKANUM – Magisches Auge ✦</div>
+  <div id="rune-dots">
+    <div class="dot" id="dot-0"></div>
+    <div class="dot" id="dot-1"></div>
+    <div class="dot" id="dot-2"></div>
+    <div class="dot" id="dot-3"></div>
+  </div>
+  <div class="scan-ring"></div>
+  <div class="scan-hint">Richte die Kamera auf einen Marker ✦</div>
+</div>
+
+<!-- ═══════ FOUND PANEL ═══════ -->
+<div id="found-panel">
+  <div class="panel-icon" id="p-icon">🔮</div>
+  <div class="panel-title" id="p-title">Kristall-Rune entdeckt</div>
+  <div class="panel-hint"  id="p-hint">Im Nebel der Sehenden liegt die erste Wahrheit.</div>
+  <div class="panel-code"  id="p-code">ᚨᛖᛏ</div>
+  <button class="btn-close" onclick="closePanel()">✦ Weitersuchen ✦</button>
+</div>
+
+<!-- ═══════ SIEG ═══════ -->
+<div id="victory-screen">
+  <div class="victory-sigil">✨</div>
+  <div class="victory-title">Das Tor öffnet sich!</div>
+  <div style="font-style:italic;color:#c8b090;font-size:.95rem;">Du hast alle Runen entdeckt.<br>Das Siegelwort lautet:</div>
+  <div class="victory-word">AETERNITAS</div>
+  <div class="victory-desc">Spreche das Wort vor dem großen Tor und es wird sich für dich öffnen, Meister der Magie.</div>
+</div>
+
+<script>
+const markerData = {
+  'marker-hiro':     { icon:'🔮', title:'Kristall-Rune entdeckt',   hint:'Im Nebel der Sehenden liegt die erste Wahrheit verborgen. Die Zeit ist kein Fluss – sie ist ein Kristall.', code:'ᚨᛖᛏ', dot:0 },
+  'marker-kanji':    { icon:'📜', title:'Altes Pergament gelesen',   hint:'Die Vergessenen flüsterten: „Das Licht kommt nicht von oben, sondern aus dem Inneren der Steine."',            code:'ᛖᚱᚾ', dot:1 },
+  'marker-letterF':  { icon:'🗝️', title:'Geisterschlüssel berührt', hint:'Drei Schlüssel existieren: Gold für den Körper, Silber für den Geist, Schatten für die Seele.',               code:'ᛁᛏᚨ', dot:2 },
+  'marker-barcode4': { icon:'⚗️', title:'Elixier-Phiole enthüllt',  hint:'Mische Morgenröte mit Mitternacht. Das Elixier der Ewigkeit verlangt den letzten Tropfen der Zeit.',            code:'ᛋ',   dot:3 }
+};
+
+const found = new Set();
+let panelOpen = false;
+
+function startAR() {
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(() => {
+      document.getElementById('intro').style.display = 'none';
+      document.getElementById('ar-scene').style.display = 'block';
+      document.getElementById('hud').style.display = 'block';
+      attachMarkerListeners();
+    })
+    .catch(() => {
+      document.getElementById('intro').style.display = 'none';
+      document.getElementById('perm-error').classList.add('show');
+    });
+}
+
+function attachMarkerListeners() {
+  Object.keys(markerData).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('markerFound', () => {
+      if (panelOpen) return;
+      showMarker(id);
+    });
+  });
+}
+
+function showMarker(id) {
+  const d = markerData[id];
+  document.getElementById('p-icon').textContent  = d.icon;
+  document.getElementById('p-title').textContent = d.title;
+  document.getElementById('p-hint').textContent  = d.hint;
+  document.getElementById('p-code').textContent  = d.code;
+  document.getElementById('found-panel').classList.add('show');
+  panelOpen = true;
+
+  // mark dot
+  document.getElementById('dot-' + d.dot).classList.add('lit');
+  found.add(id);
+
+  spawnParticles();
+
+  if (found.size === Object.keys(markerData).length) {
+    setTimeout(() => {
+      document.getElementById('found-panel').classList.remove('show');
+      document.getElementById('victory-screen').classList.add('show');
+      spawnParticles(); spawnParticles();
+    }, 3000);
+  }
+}
+
+function closePanel() {
+  document.getElementById('found-panel').classList.remove('show');
+  panelOpen = false;
+}
+
+function spawnParticles() {
+  const cx = window.innerWidth/2, cy = window.innerHeight*0.55;
+  const colors = ['#a855f7','#f0d080','#c9a84c','#7c3aed','#e879f9','#10b981'];
+  for (let i=0; i<24; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = Math.random()*Math.PI*2, dist = 80+Math.random()*140;
+    p.style.cssText = `left:${cx}px;top:${cy}px;background:${colors[Math.floor(Math.random()*colors.length)]};--tx:${Math.cos(angle)*dist}px;--ty:${Math.sin(angle)*dist}px`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(), 900);
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>🔮 ARKANUM – Fantasy Brille</title>
+
+  <!-- MindAR + A-Frame -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cormorant+Garamond:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #c9a84c; --gold-light: #f0d080;
+      --deep: #0a0612; --rune: #7c3aed; --glow: #a855f7;
+    }
+    body { overflow: hidden; background: #000; font-family: 'Cormorant Garamond', serif; }
+    a-scene { position: fixed; inset: 0; }
+
+    /* ── SETUP SCREEN ── */
+    #setup {
+      position: fixed; inset: 0; z-index: 100;
+      background: radial-gradient(ellipse at 50% 35%, #1a0533 0%, #0a0612 75%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 1.5rem; text-align: center; gap: 1rem;
+    }
+    .setup-sigil { font-size: 3rem; filter: drop-shadow(0 0 12px var(--glow)); animation: float 4s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+    .setup-title { font-family:'Cinzel Decorative',cursive; font-size:1.3rem; color:var(--gold-light); text-shadow:0 0 20px var(--glow); }
+    .setup-desc { font-style:italic; color:#b89a6a; font-size:0.95rem; line-height:1.6; max-width:380px; }
+
+    /* Upload Bereich */
+    .upload-box {
+      width: 100%; max-width: 380px;
+      border: 1.5px dashed rgba(201,168,76,0.4);
+      border-radius: 4px;
+      padding: 1.2rem;
+      background: rgba(42,10,74,0.3);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .upload-box:hover { border-color: var(--gold); background: rgba(42,10,74,0.5); }
+    .upload-box input { display: none; }
+    .upload-label { font-size: 0.85rem; color: #b89a6a; cursor: pointer; display: block; }
+    .upload-icon { font-size: 1.8rem; margin-bottom: 0.4rem; }
+    #preview-img { max-width: 100%; max-height: 120px; border-radius: 3px; margin-top: 0.6rem; display: none; border: 1px solid rgba(201,168,76,0.3); }
+
+    /* OR divider */
+    .divider { display:flex; align-items:center; gap:0.8rem; width:100%; max-width:380px; color:rgba(201,168,76,0.4); font-size:0.8rem; }
+    .divider::before, .divider::after { content:''; flex:1; height:1px; background:rgba(201,168,76,0.15); }
+
+    /* Demo ohne Upload */
+    .btn-demo {
+      font-family:'Cinzel Decorative',cursive; font-size:0.7rem;
+      letter-spacing:.12em; text-transform:uppercase;
+      background:transparent; border:1px solid rgba(201,168,76,0.3);
+      color: var(--gold); padding:.7rem 1.5rem; cursor:pointer; transition:all .3s;
+      width: 100%; max-width: 380px;
+    }
+    .btn-demo:hover { background: rgba(201,168,76,0.08); }
+
+    .btn-start {
+      font-family:'Cinzel Decorative',cursive; font-size:0.75rem;
+      letter-spacing:.12em; text-transform:uppercase;
+      color:var(--deep);
+      background: linear-gradient(135deg, var(--gold), var(--gold-light), var(--gold));
+      border:none; padding:.85rem 2rem; cursor:pointer;
+      box-shadow:0 0 25px rgba(201,168,76,.4); transition:all .3s;
+      width: 100%; max-width: 380px; display:none;
+    }
+    .btn-start:hover { box-shadow:0 0 45px rgba(201,168,76,.7); transform:translateY(-2px); }
+
+    /* ── HUD ── */
+    #hud {
+      position: fixed; inset: 0; z-index: 50; pointer-events: none;
+      display: none;
+    }
+
+    /* Fantasy Brille Overlay – zwei Okular-Ringe */
+    .goggle-left, .goggle-right {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 44vw; height: 56vw; max-width: 220px; max-height: 280px;
+      border: 2px solid rgba(201,168,76,0.5);
+      border-radius: 50%;
+      box-shadow: inset 0 0 30px rgba(168,85,247,0.08);
+    }
+    .goggle-left  { left: 2vw; }
+    .goggle-right { right: 2vw; }
+    .goggle-bridge {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8vw; height: 2px;
+      background: rgba(201,168,76,0.4);
+    }
+
+    /* Ecken-Deko */
+    .hud-corner { position:absolute; width:28px; height:28px; border-color:var(--gold); border-style:solid; opacity:0.5; }
+    .hud-corner.tl { top:12px; left:12px; border-width:2px 0 0 2px; }
+    .hud-corner.tr { top:12px; right:12px; border-width:2px 2px 0 0; }
+    .hud-corner.bl { bottom:12px; left:12px; border-width:0 0 2px 2px; }
+    .hud-corner.br { bottom:12px; right:12px; border-width:0 2px 2px 0; }
+
+    .hud-title {
+      position:absolute; top:16px; left:50%; transform:translateX(-50%);
+      font-family:'Cinzel Decorative',cursive; font-size:0.6rem;
+      letter-spacing:0.2em; color:var(--gold); opacity:0.7; white-space:nowrap;
+    }
+
+    .scan-hint {
+      position:absolute; bottom:36px; left:50%; transform:translateX(-50%);
+      font-style:italic; font-size:0.9rem;
+      color:rgba(232,213,183,0.8);
+      background:rgba(10,6,18,0.72);
+      padding:.4rem 1rem; border:1px solid rgba(201,168,76,.2);
+      white-space:nowrap; pointer-events:none;
+      animation:pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+    /* Rune-Leiste */
+    #rune-bar {
+      position:absolute; top:0; left:0; right:0;
+      display:flex; justify-content:center; gap:6px;
+      padding:8px; pointer-events:none;
+    }
+    .rune-pip { width:8px; height:8px; border-radius:50%; border:1.5px solid rgba(201,168,76,0.4); background:transparent; transition:all .4s; }
+    .rune-pip.lit { background:var(--gold); box-shadow:0 0 6px var(--gold); border-color:var(--gold); }
+
+    /* ── HINWEIS PANEL ── */
+    #hint-panel {
+      position:fixed; left:0; right:0; bottom:0; z-index:80;
+      background: linear-gradient(0deg, rgba(10,6,18,.97) 0%, rgba(42,10,74,.92) 100%);
+      border-top:1px solid rgba(201,168,76,.35);
+      padding:1.2rem 1rem 1.5rem;
+      transform:translateY(100%);
+      transition:transform .5s cubic-bezier(.16,1,.3,1);
+      pointer-events:all;
+    }
+    #hint-panel.show { transform:translateY(0); }
+    .hp-icon  { font-size:1.8rem; text-align:center; margin-bottom:.3rem; filter:drop-shadow(0 0 8px var(--glow)); animation:float 3s ease-in-out infinite; }
+    .hp-title { font-family:'Cinzel Decorative',cursive; font-size:.8rem; color:var(--gold-light); text-align:center; letter-spacing:.1em; margin-bottom:.4rem; }
+    .hp-hint  { font-style:italic; font-size:.95rem; color:#c8b090; text-align:center; line-height:1.6; margin-bottom:.6rem; }
+    .hp-code  { background:rgba(124,58,237,.2); border:1px solid var(--rune); border-radius:2px; padding:.4rem; text-align:center; font-family:monospace; font-size:1.2rem; letter-spacing:.3em; color:var(--glow); text-shadow:0 0 8px var(--glow); margin-bottom:.8rem; }
+    .btn-close { display:block; width:100%; font-family:'Cinzel Decorative',cursive; font-size:.65rem; letter-spacing:.12em; text-transform:uppercase; background:transparent; border:1px solid rgba(201,168,76,.3); color:var(--gold); padding:.55rem; cursor:pointer; }
+
+    /* particles */
+    .particle { position:fixed; pointer-events:none; z-index:999; width:5px; height:5px; border-radius:50%; animation:burst .85s ease-out forwards; }
+    @keyframes burst { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0} }
+  </style>
+</head>
+<body>
+
+<!-- ═══════ SETUP SCREEN ═══════ -->
+<div id="setup">
+  <div class="setup-sigil">🔮</div>
+  <div class="setup-title">Fantasy Brille</div>
+  <div class="setup-desc">
+    Lade ein Foto deines Fernsehers (oder eines anderen Objekts) hoch.
+    Die magische Brille erkennt es und zeigt einen geheimen Hinweis darüber an.
+  </div>
+
+  <!-- Foto Upload -->
+  <div class="upload-box" onclick="document.getElementById('img-input').click()">
+    <div class="upload-icon">📷</div>
+    <label class="upload-label">
+      Foto vom Fernseher tippen / hochladen
+      <input type="file" id="img-input" accept="image/*" onchange="handleUpload(this)">
+    </label>
+    <img id="preview-img" alt="Vorschau"/>
+  </div>
+
+  <button class="btn-start" id="btn-start" onclick="startWithImage()">✦ Brille aufsetzen ✦</button>
+
+  <div class="divider">oder</div>
+
+  <button class="btn-demo" onclick="startDemo()">
+    Ohne Foto – Demo mit Standard-Marker starten
+  </button>
+
+  <div style="font-style:italic;font-size:0.75rem;color:#5a4030;max-width:340px;">
+    Tipp: Beleuchte das Objekt gut und halte das Foto scharf.
+    MindAR braucht markante Texturen/Muster zur Erkennung.
+  </div>
+</div>
+
+<!-- ═══════ AR SCENE ═══════ -->
+<a-scene id="ar-scene" style="display:none"
+  mindar-image="imageTargetSrc: #target-mind; autoStart: false;"
+  embedded
+  renderer="antialias: true; logarithmicDepthBuffer: true;"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false">
+
+  <a-assets>
+    <!-- Wir laden das .mind-File dynamisch per JS -->
+  </a-assets>
+
+  <!-- Kamera -->
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+  <!-- Target 0: Erkanntes Objekt -->
+  <a-entity mindar-image-target="targetIndex: 0" id="target-entity">
+
+    <!-- Magischer Rahmen um das erkannte Objekt -->
+    <a-plane position="0 0 0.001" width="1.2" height="0.7"
+      material="color:#7c3aed;opacity:0.12;transparent:true;side:double">
+    </a-plane>
+
+    <!-- Rahmen-Linien (4 Ecken) -->
+    <a-entity position="-0.55 0.3 0.002">
+      <a-plane width="0.15" height="0.02" material="color:#c9a84c;opacity:0.9;transparent:true"></a-plane>
+      <a-plane width="0.02" height="0.15" material="color:#c9a84c;opacity:0.9;transparent:true" position="0 -0.065 0"></a-plane>
+    </a-entity>
+    <a-entity position="0.55 0.3 0.002">
+      <a-plane width="0.15" height="0.02" material="color:#c9a84c;opacity:0.9;transparent:true"></a-plane>
+      <a-plane width="0.02" height="0.15" material="color:#c9a84c;opacity:0.9;transparent:true" position="0 -0.065 0"></a-plane>
+    </a-entity>
+    <a-entity position="-0.55 -0.3 0.002">
+      <a-plane width="0.15" height="0.02" material="color:#c9a84c;opacity:0.9;transparent:true"></a-plane>
+      <a-plane width="0.02" height="0.15" material="color:#c9a84c;opacity:0.9;transparent:true" position="0 0.065 0"></a-plane>
+    </a-entity>
+    <a-entity position="0.55 -0.3 0.002">
+      <a-plane width="0.15" height="0.02" material="color:#c9a84c;opacity:0.9;transparent:true"></a-plane>
+      <a-plane width="0.02" height="0.15" material="color:#c9a84c;opacity:0.9;transparent:true" position="0 0.065 0"></a-plane>
+    </a-entity>
+
+    <!-- Schwebende Runen oben -->
+    <a-text value="✦ ᚨᛖᛏ ᛖᚱᚾ ᛁᛏᚨ ✦"
+      position="0 0.48 0.003"
+      align="center" color="#f0d080" width="1.8"
+      animation="property:position; from:0 0.46 0.003; to:0 0.50 0.003; loop:true; dur:2000; dir:alternate; easing:easeInOutSine">
+    </a-text>
+
+    <!-- Haupthinweis-Text -->
+    <a-text value="Das verborgene Tor"
+      position="0 0.22 0.003"
+      align="center" color="#a855f7" width="1.6"
+      animation="property:opacity; from:0.6; to:1; loop:true; dur:1500; dir:alternate">
+    </a-text>
+    <a-text value="liegt hinter dem Licht"
+      position="0 0.1 0.003"
+      align="center" color="#c8b090" width="1.5">
+    </a-text>
+    <a-text value="das niemals erlischt."
+      position="0 -0.02 0.003"
+      align="center" color="#c8b090" width="1.5">
+    </a-text>
+
+    <!-- Rune Code -->
+    <a-text value="AETERNITAS"
+      position="0 -0.2 0.003"
+      align="center" color="#7c3aed" width="1.8"
+      animation="property:color; from:#7c3aed; to:#a855f7; loop:true; dur:2000; dir:alternate">
+    </a-text>
+
+    <!-- Schwebender Kristall -->
+    <a-octahedron position="0 -0.38 0.05" radius="0.06" color="#a855f7"
+      material="emissive:#5b21b6;emissiveIntensity:0.8;opacity:0.85;transparent:true"
+      animation__rot="property:rotation; to:0 360 0; loop:true; dur:3000; easing:linear"
+      animation__pos="property:position; from:0 -0.36 0.05; to:0 -0.40 0.05; loop:true; dur:1800; dir:alternate; easing:easeInOutSine">
+    </a-octahedron>
+
+    <!-- Ecken-Sterne -->
+    <a-text value="✦" position="-0.52 0.27 0.003" align="center" color="#c9a84c" width="0.8"
+      animation="property:rotation; to:0 0 360; loop:true; dur:4000; easing:linear"></a-text>
+    <a-text value="✦" position=" 0.52 0.27 0.003" align="center" color="#c9a84c" width="0.8"
+      animation="property:rotation; to:0 0 -360; loop:true; dur:4000; easing:linear"></a-text>
+
+  </a-entity>
+
+</a-scene>
+
+<!-- ═══════ HUD ═══════ -->
+<div id="hud">
+  <div class="hud-corner tl"></div>
+  <div class="hud-corner tr"></div>
+  <div class="hud-corner bl"></div>
+  <div class="hud-corner br"></div>
+  <div class="hud-title">✦ ARKANUM – Magisches Auge ✦</div>
+
+  <!-- Fantasy Brille Okulare -->
+  <div class="goggle-left"></div>
+  <div class="goggle-right"></div>
+  <div class="goggle-bridge"></div>
+
+  <div id="rune-bar">
+    <div class="rune-pip" id="pip-0"></div>
+    <div class="rune-pip" id="pip-1"></div>
+    <div class="rune-pip" id="pip-2"></div>
+    <div class="rune-pip" id="pip-3"></div>
+  </div>
+
+  <div class="scan-hint" id="scan-hint">Richte die Kamera auf das Objekt ✦</div>
+</div>
+
+<!-- ═══════ HINWEIS PANEL ═══════ -->
+<div id="hint-panel">
+  <div class="hp-icon">🔮</div>
+  <div class="hp-title">Geheimnis entdeckt!</div>
+  <div class="hp-hint">Das verborgene Tor liegt hinter dem Licht, das niemals erlischt. Suche das Zeichen der Ewigkeit.</div>
+  <div class="hp-code">AETERNITAS</div>
+  <button class="btn-close" onclick="closeHint()">✦ Weitersuchen ✦</button>
+</div>
+
+<!-- ═══════ COMPILER INFO ═══════ -->
+<div id="compiler-overlay" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(10,6,18,.95);align-items:center;justify-content:center;flex-direction:column;gap:1rem;padding:2rem;text-align:center;">
+  <div style="font-size:2rem;animation:float 2s ease-in-out infinite">⚗️</div>
+  <div style="font-family:'Cinzel Decorative',cursive;color:var(--gold);font-size:.9rem;">Magie wird gewoben...</div>
+  <div style="font-style:italic;color:#b89a6a;font-size:.85rem;">Bild wird analysiert und in einen Erkennungs-Marker umgewandelt</div>
+  <div id="compile-progress" style="width:200px;height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden;">
+    <div id="compile-bar" style="height:100%;background:linear-gradient(90deg,var(--rune),var(--glow));width:0%;transition:width .3s;"></div>
+  </div>
+  <div id="compile-status" style="font-family:monospace;font-size:.75rem;color:var(--glow);">0%</div>
+</div>
+
+<script>
+let uploadedImageURL = null;
+let sceneStarted = false;
+let panelShown = false;
+let foundCount = 0;
+
+// ── Upload Handler ──────────────────────────────────
+function handleUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  uploadedImageURL = url;
+  const preview = document.getElementById('preview-img');
+  preview.src = url;
+  preview.style.display = 'block';
+  document.getElementById('btn-start').style.display = 'block';
+}
+
+// ── Start mit eigenem Bild (MindAR Compiler API) ───
+async function startWithImage() {
+  if (!uploadedImageURL) return;
+  showCompiler();
+
+  try {
+    // MindAR Compiler: Bild → .mind Buffer
+    const { Compiler } = window.MINDAR.IMAGE;
+    const compiler = new Compiler();
+
+    const img = new Image();
+    img.src = uploadedImageURL;
+    await new Promise(r => img.onload = r);
+
+    updateCompiler(20, 'Bild geladen...');
+    await compiler.compileImageTargets([img], (progress) => {
+      updateCompiler(20 + progress * 0.7, Math.round(20 + progress * 0.7) + '%');
+    });
+
+    updateCompiler(90, 'Marker wird vorbereitet...');
+    const buffer = await compiler.exportData();
+    const blob = new Blob([buffer]);
+    const mindURL = URL.createObjectURL(blob);
+
+    updateCompiler(100, 'Bereit!');
+    await sleep(600);
+
+    launchAR(mindURL);
+  } catch(e) {
+    console.error(e);
+    hideCompiler();
+    alert('Fehler beim Verarbeiten des Bildes. Bitte versuche ein anderes Foto.');
+  }
+}
+
+// ── Demo Modus (Hiro Marker) ────────────────────────
+function startDemo() {
+  // Im Demo-Modus: Hiro-Marker via AR.js statt MindAR
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('ar-scene').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+
+  // Zeige eine Erklärung + direkten Hinweis
+  setTimeout(() => {
+    showHintPanel();
+  }, 1000);
+
+  document.getElementById('scan-hint').textContent = 'Demo-Modus – Hinweis erscheint automatisch ✦';
+}
+
+// ── AR Szene starten ────────────────────────────────
+function launchAR(mindURL) {
+  hideCompiler();
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+
+  const scene = document.getElementById('ar-scene');
+  scene.setAttribute('mindar-image', `imageTargetSrc: ${mindURL}; autoStart: true;`);
+  scene.style.display = 'block';
+
+  scene.addEventListener('arReady', () => {
+    console.log('AR bereit');
+  });
+
+  const target = document.getElementById('target-entity');
+  target.addEventListener('targetFound', () => {
+    document.getElementById('scan-hint').textContent = '✦ Magisches Objekt erkannt! ✦';
+    spawnParticles();
+    if (!panelShown) {
+      setTimeout(showHintPanel, 800);
+      foundCount++;
+      updatePips();
+    }
+  });
+
+  target.addEventListener('targetLost', () => {
+    document.getElementById('scan-hint').textContent = 'Richte die Kamera auf das Objekt ✦';
+  });
+
+  sceneStarted = true;
+}
+
+// ── UI Helpers ──────────────────────────────────────
+function showHintPanel() {
+  panelShown = true;
+  document.getElementById('hint-panel').classList.add('show');
+  spawnParticles();
+}
+function closeHint() {
+  panelShown = false;
+  document.getElementById('hint-panel').classList.remove('show');
+}
+
+function updatePips() {
+  for (let i = 0; i < Math.min(foundCount, 4); i++) {
+    document.getElementById('pip-' + i)?.classList.add('lit');
+  }
+}
+
+function showCompiler() {
+  const el = document.getElementById('compiler-overlay');
+  el.style.display = 'flex';
+  updateCompiler(5, 'Starte Analyse...');
+}
+function hideCompiler() {
+  document.getElementById('compiler-overlay').style.display = 'none';
+}
+function updateCompiler(pct, txt) {
+  document.getElementById('compile-bar').style.width = pct + '%';
+  document.getElementById('compile-status').textContent = txt;
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function spawnParticles() {
+  const colors = ['#a855f7','#f0d080','#c9a84c','#7c3aed','#e879f9'];
+  const cx = window.innerWidth/2, cy = window.innerHeight*0.6;
+  for (let i=0; i<20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = Math.random()*Math.PI*2, d = 60+Math.random()*120;
+    p.style.cssText = `left:${cx}px;top:${cy}px;background:${colors[Math.floor(Math.random()*colors.length)]};--tx:${Math.cos(angle)*d}px;--ty:${Math.sin(angle)*d}px`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(), 900);
+  }
+}
+</script>
+
+</body>
+</html>

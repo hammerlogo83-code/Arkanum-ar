@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🔮 Arkanum – Das magische Tor</title>
+
+  <!-- AR.js + A-Frame -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #c9a84c;
+      --gold-light: #f0d080;
+      --deep: #0a0612;
+      --purple: #2a0a4a;
+      --rune: #7c3aed;
+      --glow: #a855f7;
+      --mist: rgba(168,85,247,0.15);
+    }
+
+    body {
+      font-family: 'Cormorant Garamond', serif;
+      background: var(--deep);
+      color: #e8d5b7;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ── LANDING SCREEN ─────────────────────────────── */
+    #landing {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 30%, #1a0533 0%, #0a0612 70%);
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .stars {
+      position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+    }
+    .star {
+      position: absolute; background: white; border-radius: 50%;
+      animation: twinkle var(--d, 3s) ease-in-out infinite var(--delay, 0s);
+    }
+    @keyframes twinkle {
+      0%,100% { opacity: 0.1; transform: scale(1); }
+      50%      { opacity: 0.9; transform: scale(1.4); }
+    }
+
+    .sigil {
+      width: 120px; height: 120px;
+      margin-bottom: 1.5rem;
+      animation: float 4s ease-in-out infinite;
+      filter: drop-shadow(0 0 20px var(--glow));
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0) rotate(0deg); }
+      50%      { transform: translateY(-12px) rotate(5deg); }
+    }
+
+    h1 {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      color: var(--gold-light);
+      text-shadow: 0 0 30px var(--glow), 0 0 60px rgba(168,85,247,0.4);
+      letter-spacing: 0.05em;
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      font-style: italic;
+      color: #b89a6a;
+      margin-bottom: 2rem;
+      letter-spacing: 0.1em;
+    }
+
+    .lore {
+      max-width: 480px;
+      font-size: 1rem;
+      line-height: 1.8;
+      color: #c8b090;
+      border: 1px solid rgba(201,168,76,0.25);
+      padding: 1.2rem 1.5rem;
+      border-radius: 2px;
+      background: rgba(42,10,74,0.4);
+      margin-bottom: 2rem;
+      position: relative;
+    }
+    .lore::before, .lore::after {
+      content: '✦';
+      color: var(--gold);
+      position: absolute;
+      font-size: 0.8rem;
+    }
+    .lore::before { top: -0.5rem; left: 50%; transform: translateX(-50%); }
+    .lore::after  { bottom: -0.5rem; left: 50%; transform: translateX(-50%); }
+
+    .btn-primary {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      color: var(--deep);
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+      border: none; cursor: pointer;
+      padding: 0.9rem 2.5rem;
+      border-radius: 1px;
+      box-shadow: 0 0 30px rgba(201,168,76,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+      transition: all 0.3s;
+      text-transform: uppercase;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 0 50px rgba(201,168,76,0.7), inset 0 1px 0 rgba(255,255,255,0.3);
+      transform: translateY(-2px);
+    }
+
+    /* ── MARKER DEMO SCREEN ─────────────────────────── */
+    #demo-screen {
+      display: none;
+      position: fixed; inset: 0; z-index: 90;
+      background: var(--deep);
+    }
+
+    /* ── AR SCENE ───────────────────────────────────── */
+    #ar-scene {
+      display: none;
+      position: fixed; inset: 0; z-index: 80;
+    }
+
+    /* ── HUD OVERLAY ────────────────────────────────── */
+    #hud {
+      position: fixed; inset: 0; z-index: 95; pointer-events: none;
+      display: none;
+    }
+
+    .hud-corner {
+      position: absolute;
+      width: 30px; height: 30px;
+      border-color: var(--gold);
+      border-style: solid;
+      opacity: 0.7;
+    }
+    .hud-corner.tl { top:16px; left:16px; border-width: 2px 0 0 2px; }
+    .hud-corner.tr { top:16px; right:16px; border-width: 2px 2px 0 0; }
+    .hud-corner.bl { bottom:16px; left:16px; border-width: 0 0 2px 2px; }
+    .hud-corner.br { bottom:16px; right:16px; border-width: 0 2px 2px 0; }
+
+    .hud-title {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.7rem; letter-spacing: 0.2em;
+      color: var(--gold); opacity: 0.8; text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .scan-hint {
+      position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+      font-style: italic; font-size: 1rem;
+      color: rgba(232,213,183,0.8);
+      background: rgba(10,6,18,0.7);
+      padding: 0.5rem 1.2rem;
+      border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 2px;
+      white-space: nowrap;
+      pointer-events: none;
+      animation: pulse-text 2s ease-in-out infinite;
+    }
+    @keyframes pulse-text {
+      0%,100% { opacity: 0.6; }
+      50%      { opacity: 1; }
+    }
+
+    /* ── FOUND PANEL ────────────────────────────────── */
+    #found-panel {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+      background: linear-gradient(0deg, rgba(10,6,18,0.97) 0%, rgba(42,10,74,0.9) 100%);
+      border-top: 1px solid rgba(201,168,76,0.4);
+      padding: 1.5rem;
+      transform: translateY(100%);
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: all;
+    }
+    #found-panel.show { transform: translateY(0); }
+
+    .panel-rune {
+      font-size: 2rem; text-align: center; margin-bottom: 0.5rem;
+      filter: drop-shadow(0 0 10px var(--glow));
+      animation: float 3s ease-in-out infinite;
+    }
+    .panel-title {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.9rem; color: var(--gold-light);
+      text-align: center; letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .panel-hint {
+      font-style: italic; font-size: 1.05rem;
+      color: #c8b090; text-align: center;
+      line-height: 1.6; margin-bottom: 1rem;
+    }
+    .panel-code {
+      background: rgba(124,58,237,0.2);
+      border: 1px solid var(--rune);
+      border-radius: 2px;
+      padding: 0.6rem 1rem;
+      text-align: center;
+      font-family: monospace;
+      font-size: 1.3rem;
+      letter-spacing: 0.3em;
+      color: var(--glow);
+      text-shadow: 0 0 10px var(--glow);
+      margin-bottom: 1rem;
+    }
+    .btn-close {
+      display: block; width: 100%;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.75rem; letter-spacing: 0.15em;
+      background: transparent;
+      border: 1px solid rgba(201,168,76,0.5);
+      color: var(--gold);
+      padding: 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+    }
+    .btn-close:hover { background: rgba(201,168,76,0.1); }
+
+    /* ── DEMO / SIMULATOR SCREEN ────────────────────── */
+    .demo-inner {
+      height: 100%; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 2rem; text-align: center;
+      background: radial-gradient(ellipse at 50% 60%, #1a0533 0%, #0a0612 80%);
+    }
+
+    .marker-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;
+      width: 100%; max-width: 420px; margin: 1.5rem 0;
+    }
+
+    .marker-card {
+      background: rgba(42,10,74,0.5);
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 4px;
+      padding: 1.2rem 0.8rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 0.5rem;
+      pointer-events: all;
+    }
+    .marker-card:hover {
+      border-color: var(--gold);
+      background: rgba(42,10,74,0.8);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(168,85,247,0.3);
+    }
+    .marker-card .icon { font-size: 2rem; filter: drop-shadow(0 0 8px var(--glow)); }
+    .marker-card .label {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.6rem; letter-spacing: 0.12em;
+      color: var(--gold); text-transform: uppercase;
+    }
+    .marker-card .desc {
+      font-size: 0.8rem; font-style: italic;
+      color: #9a8060; line-height: 1.3;
+    }
+
+    .demo-note {
+      font-size: 0.85rem; font-style: italic;
+      color: #7a6050; margin-top: 1rem;
+    }
+
+    h2 {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 1.1rem; color: var(--gold-light);
+      text-shadow: 0 0 20px var(--glow);
+      margin-bottom: 0.3rem;
+    }
+
+    .back-btn {
+      margin-top: 1rem;
+      background: transparent;
+      border: 1px solid rgba(201,168,76,0.3);
+      color: #9a8060;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 0.85rem;
+      padding: 0.5rem 1.2rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .back-btn:hover { color: var(--gold); border-color: var(--gold); }
+
+    /* ── MAGIC PARTICLE BURST ───────────────────────── */
+    .particle {
+      position: fixed; pointer-events: none; z-index: 300;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--glow);
+      animation: burst 0.8s ease-out forwards;
+    }
+    @keyframes burst {
+      0%   { transform: translate(0,0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ LANDING ═══════════════ -->
+<div id="landing">
+  <div class="stars" id="stars"></div>
+
+  <svg class="sigil" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="60" cy="60" r="55" stroke="#c9a84c" stroke-width="1" stroke-dasharray="4 6" opacity="0.5"/>
+    <circle cx="60" cy="60" r="42" stroke="#7c3aed" stroke-width="1.5" opacity="0.7"/>
+    <!-- star of solomon -->
+    <polygon points="60,15 69,42 98,42 74,59 83,87 60,70 37,87 46,59 22,42 51,42" fill="none" stroke="#c9a84c" stroke-width="1.5" stroke-linejoin="round" opacity="0.9"/>
+    <circle cx="60" cy="60" r="8" fill="#7c3aed" opacity="0.6"/>
+    <circle cx="60" cy="60" r="4" fill="#f0d080"/>
+  </svg>
+
+  <h1>ARKANUM</h1>
+  <p class="subtitle">Das Magische Tor</p>
+
+  <div class="lore">
+    Drei uralte Runen wurden verstreut. Nur wer alle drei entdeckt und ihre Botschaft entziffert,
+    kann das Siegelwort sprechen und das verborgene Tor öffnen.
+    <br><br>
+    Richte dein Auge auf die Zeichen der alten Welt.
+  </div>
+
+  <button class="btn-primary" onclick="startApp()">✦ Das Abenteuer beginnen ✦</button>
+</div>
+
+<!-- ═══════════════ DEMO/SIMULATOR ═══════════════ -->
+<div id="demo-screen">
+  <div class="demo-inner">
+    <div class="stars" id="stars2"></div>
+
+    <h2>Magische Artefakte</h2>
+    <p style="font-style:italic;color:#9a8060;margin-bottom:0.5rem;font-size:0.9rem;">
+      Tippe auf ein Zeichen, um es zu enthüllen
+    </p>
+
+    <div class="marker-grid">
+      <div class="marker-card" onclick="triggerMarker(0)">
+        <div class="icon">🔮</div>
+        <div class="label">Kristall-Rune</div>
+        <div class="desc">Nebel der Sehenden</div>
+      </div>
+      <div class="marker-card" onclick="triggerMarker(1)">
+        <div class="icon">📜</div>
+        <div class="label">Altes Pergament</div>
+        <div class="desc">Wort der Vergessenen</div>
+      </div>
+      <div class="marker-card" onclick="triggerMarker(2)">
+        <div class="icon">🗝️</div>
+        <div class="label">Geisterschlüssel</div>
+        <div class="desc">Hüter des Tores</div>
+      </div>
+      <div class="marker-card" onclick="triggerMarker(3)">
+        <div class="icon">⚗️</div>
+        <div class="label">Elixier-Phiole</div>
+        <div class="desc">Essenz der Zeit</div>
+      </div>
+    </div>
+
+    <div id="progress-bar" style="width:100%;max-width:420px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:0.4rem;">
+        <span style="font-size:0.75rem;color:#7a6050;font-style:italic;">Gefundene Runen</span>
+        <span id="found-count" style="font-size:0.75rem;color:var(--gold);">0 / 4</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.05);border-radius:2px;height:4px;overflow:hidden;">
+        <div id="progress-fill" style="height:100%;background:linear-gradient(90deg,var(--rune),var(--glow));width:0%;transition:width 0.6s;"></div>
+      </div>
+    </div>
+
+    <div id="victory" style="display:none;margin-top:1rem;padding:1rem 1.5rem;border:1px solid var(--gold);background:rgba(42,10,74,0.6);border-radius:2px;text-align:center;">
+      <div style="font-size:2rem;margin-bottom:0.4rem;filter:drop-shadow(0 0 12px gold);">✨</div>
+      <div style="font-family:'Cinzel Decorative',cursive;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem;">Das Tor öffnet sich!</div>
+      <div style="font-size:0.9rem;font-style:italic;color:#c8b090;">Das Siegelwort lautet:</div>
+      <div style="font-size:1.5rem;letter-spacing:0.4em;color:var(--glow);text-shadow:0 0 15px var(--glow);margin-top:0.4rem;">AETERNITAS</div>
+    </div>
+
+    <p class="demo-note">📱 In der echten App scannst du physische Marker per Kamera</p>
+    <button class="back-btn" onclick="goBack()">← Zurück</button>
+  </div>
+</div>
+
+<!-- ═══════════════ FOUND PANEL ═══════════════ -->
+<div id="found-panel">
+  <div class="panel-rune" id="panel-icon">🔮</div>
+  <div class="panel-title" id="panel-title">Kristall-Rune entdeckt</div>
+  <div class="panel-hint" id="panel-hint">Im Nebel der Sehenden liegt die erste Wahrheit verborgen.</div>
+  <div class="panel-code" id="panel-code">ᚨᛖᛏ</div>
+  <button class="btn-close" onclick="closePanel()">✦ Weitersuchen ✦</button>
+</div>
+
+<script>
+  // ── Star field ──────────────────────────────────────
+  function makeStars(containerId, count) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      const size = Math.random() * 2.5 + 0.5;
+      s.style.cssText = `
+        width:${size}px; height:${size}px;
+        top:${Math.random()*100}%; left:${Math.random()*100}%;
+        --d:${2+Math.random()*4}s; --delay:${Math.random()*5}s;
+      `;
+      c.appendChild(s);
+    }
+  }
+  makeStars('stars', 80);
+  makeStars('stars2', 60);
+
+  // ── Marker data ─────────────────────────────────────
+  const markers = [
+    {
+      icon: '🔮', title: 'Kristall-Rune entdeckt',
+      hint: 'Im Nebel der Sehenden liegt die erste Wahrheit verborgen. Die Zeit ist nicht linear – sie ist ein Kreis.',
+      code: 'ᚨᛖᛏ', codeLabel: 'Rune I'
+    },
+    {
+      icon: '📜', title: 'Altes Pergament gelesen',
+      hint: 'Die Vergessenen flüsterten: "Das Licht kommt nicht von oben, sondern aus dem Inneren der Steine."',
+      code: 'ᛖᚱᚾ', codeLabel: 'Rune II'
+    },
+    {
+      icon: '🗝️', title: 'Geisterschlüssel berührt',
+      hint: 'Drei Schlüssel existieren: Gold für den Körper, Silber für den Geist, Schatten für die Seele.',
+      code: 'ᛁᛏᚨ', codeLabel: 'Rune III'
+    },
+    {
+      icon: '⚗️', title: 'Elixier-Phiole enthüllt',
+      hint: 'Mische Morgenröte mit Mitternacht. Das Elixier der Ewigkeit verlangt den letzten Tropfen der Zeit.',
+      code: 'ᛋ', codeLabel: 'Rune IV'
+    }
+  ];
+
+  const found = new Set();
+
+  function startApp() {
+    document.getElementById('landing').style.display = 'none';
+    document.getElementById('demo-screen').style.display = 'block';
+  }
+
+  function goBack() {
+    document.getElementById('demo-screen').style.display = 'none';
+    document.getElementById('landing').style.display = 'flex';
+  }
+
+  function triggerMarker(idx) {
+    const m = markers[idx];
+    document.getElementById('panel-icon').textContent = m.icon;
+    document.getElementById('panel-title').textContent = m.title;
+    document.getElementById('panel-hint').textContent = m.hint;
+    document.getElementById('panel-code').textContent = m.code;
+
+    document.getElementById('found-panel').classList.add('show');
+
+    // particle burst
+    spawnParticles();
+
+    // track progress
+    found.add(idx);
+    const pct = (found.size / markers.length) * 100;
+    document.getElementById('found-count').textContent = `${found.size} / ${markers.length}`;
+    document.getElementById('progress-fill').style.width = pct + '%';
+
+    if (found.size === markers.length) {
+      setTimeout(() => {
+        document.getElementById('victory').style.display = 'block';
+      }, 600);
+    }
+  }
+
+  function closePanel() {
+    document.getElementById('found-panel').classList.remove('show');
+  }
+
+  function spawnParticles() {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight * 0.6;
+    const colors = ['#a855f7','#f0d080','#c9a84c','#7c3aed','#e879f9'];
+    for (let i = 0; i < 20; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 60 + Math.random() * 120;
+      p.style.left = cx + 'px';
+      p.style.top = cy + 'px';
+      p.style.background = colors[Math.floor(Math.random() * colors.length)];
+      p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 800);
+    }
+  }
+</script>
+
+</body>
+</html>
