@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>🔮 ARKANUM – Multi-Target</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cormorant+Garamond:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --gold:#c9a84c; --gold-light:#f0d080; --deep:#0a0612; --rune:#7c3aed; --glow:#a855f7; }
+    body { background:var(--deep); color:#e8d5b7; font-family:'Cormorant Garamond',serif; min-height:100vh; overflow-x:hidden; }
+
+    .screen { display:none; min-height:100vh; flex-direction:column; align-items:center; justify-content:center; padding:1.5rem; text-align:center; }
+    .screen.active { display:flex; }
+
+    .stars { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+    .star  { position:absolute; background:white; border-radius:50%; animation:twinkle var(--d,3s) ease-in-out infinite var(--delay,0s); }
+    @keyframes twinkle { 0%,100%{opacity:.1} 50%{opacity:.8} }
+
+    .sigil { font-size:3.5rem; margin-bottom:1rem; animation:float 4s ease-in-out infinite; filter:drop-shadow(0 0 12px var(--glow)); z-index:1; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+    h1 { font-family:'Cinzel Decorative',cursive; font-size:clamp(1.4rem,5vw,2rem); color:var(--gold-light); text-shadow:0 0 20px var(--glow); margin-bottom:.4rem; z-index:1; }
+
+    /* SETUP */
+    .setup-header h2 { font-family:'Cinzel Decorative',cursive; font-size:.95rem; color:var(--gold); letter-spacing:.1em; }
+    .setup-header p  { font-style:italic; font-size:.85rem; color:#9a8060; margin-top:.2rem; }
+    .targets-grid { display:grid; grid-template-columns:1fr 1fr; gap:.8rem; width:100%; max-width:480px; margin-bottom:1rem; }
+
+    .target-card {
+      background:rgba(42,10,74,0.4); border:1.5px dashed rgba(201,168,76,0.25);
+      border-radius:6px; padding:.8rem .6rem; cursor:pointer; transition:all .3s; position:relative;
+    }
+    .target-card.loaded { border-style:solid; border-color:rgba(201,168,76,0.6); }
+    .tc-preview { width:100%; height:80px; object-fit:cover; border-radius:4px; display:none; margin-bottom:.4rem; }
+    .tc-preview.show { display:block; }
+    .tc-icon    { font-size:1.8rem; margin-bottom:.3rem; }
+    .tc-name    { font-family:'Cinzel Decorative',cursive; font-size:.55rem; color:var(--gold); letter-spacing:.1em; display:block; margin-bottom:.2rem; }
+    .tc-effect  { font-size:.72rem; font-style:italic; color:#9a8060; display:block; }
+
+    .effect-editor { width:100%; max-width:480px; background:rgba(42,10,74,0.3); border:1px solid rgba(201,168,76,0.15); border-radius:6px; padding:.8rem; margin-bottom:1rem; }
+    .effect-editor label { font-size:.75rem; color:#b89a6a; display:block; margin-bottom:.3rem; }
+    .effect-editor select, .effect-editor input[type=text] { width:100%; background:rgba(10,6,18,.8); border:1px solid rgba(201,168,76,.25); border-radius:3px; color:#e8d5b7; font-family:'Cormorant Garamond',serif; font-size:.9rem; padding:.4rem .6rem; margin-bottom:.5rem; }
+
+    .btn-gold { font-family:'Cinzel Decorative',cursive; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--deep); background:linear-gradient(135deg,var(--gold),var(--gold-light),var(--gold)); border:none; padding:.8rem 2rem; cursor:pointer; box-shadow:0 0 20px rgba(201,168,76,.4); transition:all .3s; width:100%; max-width:480px; }
+    .btn-gold:hover { box-shadow:0 0 40px rgba(201,168,76,.7); transform:translateY(-2px); }
+    .btn-gold:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+    .btn-outline { font-family:'Cinzel Decorative',cursive; font-size:.65rem; letter-spacing:.1em; text-transform:uppercase; background:transparent; border:1px solid rgba(201,168,76,.3); color:var(--gold); padding:.6rem 1.5rem; cursor:pointer; transition:all .2s; width:100%; max-width:480px; margin-top:.5rem; }
+
+    /* KAMERA */
+    #cam-screen { padding:0; background:#000; }
+    #cam-video  { position:fixed; inset:0; width:100%; height:100vh; object-fit:cover; display:block; }
+    .cam-ui     { position:fixed; bottom:0; left:0; right:0; z-index:50; padding:1.2rem; display:flex; flex-direction:column; align-items:center; gap:.8rem; background:linear-gradient(0deg,rgba(0,0,0,0.85),transparent); }
+    #cam-selector { display:none; flex-wrap:wrap; gap:6px; justify-content:center; max-width:360px; }
+    .shoot-btn  { width:68px; height:68px; border-radius:50%; background:white; border:4px solid var(--gold); cursor:pointer; font-size:1.8rem; display:flex; align-items:center; justify-content:center; }
+
+    /* ANALYSE */
+    #analyse-screen { gap:1rem; }
+    .analyse-icon   { font-size:3rem; animation:float 2s ease-in-out infinite; }
+    .progress-track { width:240px; height:6px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
+    .progress-fill  { height:100%; background:linear-gradient(90deg,var(--rune),var(--glow)); width:0%; transition:width .4s; }
+
+    /* AR */
+    #ar-screen { padding:0; position:relative; overflow:hidden; }
+    #ar-video  { position:fixed; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
+    #ar-canvas { position:fixed; inset:0; z-index:2; pointer-events:none; }
+
+    /* HUD */
+    #hud { position:fixed; inset:0; z-index:10; pointer-events:none; }
+    .hud-corner { position:absolute; width:28px; height:28px; border-color:var(--gold); border-style:solid; opacity:.5; }
+    .hud-corner.tl { top:12px; left:12px; border-width:2px 0 0 2px; }
+    .hud-corner.tr { top:12px; right:12px; border-width:2px 2px 0 0; }
+    .hud-corner.bl { bottom:12px; left:12px; border-width:0 0 2px 2px; }
+    .hud-corner.br { bottom:12px; right:12px; border-width:0 2px 2px 0; }
+    .hud-title  { position:absolute; top:16px; left:50%; transform:translateX(-50%); font-family:'Cinzel Decorative',cursive; font-size:.58rem; letter-spacing:.18em; color:var(--gold); opacity:.7; white-space:nowrap; }
+    #rune-dots  { position:absolute; top:44px; left:50%; transform:translateX(-50%); display:flex; gap:7px; }
+    .rdot       { width:8px; height:8px; border-radius:50%; border:1.5px solid rgba(201,168,76,.4); background:transparent; transition:all .4s; }
+    .rdot.lit   { background:var(--gold); box-shadow:0 0 6px var(--gold); border-color:var(--gold); }
+    .scan-hint  { position:absolute; bottom:36px; left:50%; transform:translateX(-50%); font-style:italic; font-size:.88rem; color:rgba(232,213,183,.8); background:rgba(10,6,18,.72); padding:.4rem 1rem; border:1px solid rgba(201,168,76,.2); white-space:nowrap; animation:pulse 2.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+    /* Sensitivity Slider */
+    #sensitivity-wrap { position:absolute; top:70px; right:12px; display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:all; }
+    #sensitivity-wrap label { font-size:.6rem; color:rgba(201,168,76,.7); font-family:'Cinzel Decorative',cursive; writing-mode:horizontal-tb; }
+    #sens-slider { width:80px; accent-color:var(--rune); }
+
+    /* FOUND PANEL */
+    #found-panel { position:fixed; bottom:0; left:0; right:0; z-index:20; background:linear-gradient(0deg,rgba(10,6,18,.97) 0%,rgba(42,10,74,.93) 100%); border-top:1px solid rgba(201,168,76,.35); padding:1.2rem 1rem 1.5rem; transform:translateY(100%); transition:transform .45s cubic-bezier(.16,1,.3,1); pointer-events:all; }
+    #found-panel.show { transform:translateY(0); }
+    .fp-icon  { font-size:1.8rem; text-align:center; margin-bottom:.3rem; filter:drop-shadow(0 0 8px var(--glow)); animation:float 3s ease-in-out infinite; }
+    .fp-title { font-family:'Cinzel Decorative',cursive; font-size:.78rem; color:var(--gold-light); text-align:center; letter-spacing:.1em; margin-bottom:.3rem; }
+    .fp-hint  { font-style:italic; font-size:.92rem; color:#c8b090; text-align:center; line-height:1.55; margin-bottom:.6rem; }
+    .fp-code  { background:rgba(124,58,237,.2); border:1px solid var(--rune); border-radius:2px; padding:.4rem; text-align:center; font-family:monospace; font-size:1.1rem; letter-spacing:.3em; color:var(--glow); text-shadow:0 0 8px var(--glow); margin-bottom:.7rem; }
+    .btn-close { display:block; width:100%; font-family:'Cinzel Decorative',cursive; font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; background:transparent; border:1px solid rgba(201,168,76,.3); color:var(--gold); padding:.5rem; cursor:pointer; pointer-events:all; }
+
+    /* VICTORY */
+    #victory { display:none; position:fixed; inset:0; z-index:30; background:rgba(10,6,18,.93); align-items:center; justify-content:center; flex-direction:column; gap:.8rem; text-align:center; padding:2rem; }
+    #victory.show { display:flex; }
+    .v-title { font-family:'Cinzel Decorative',cursive; font-size:1.1rem; color:var(--gold-light); text-shadow:0 0 20px var(--glow); }
+    .v-word  { font-size:1.8rem; letter-spacing:.5em; color:var(--glow); text-shadow:0 0 15px var(--glow); }
+
+    .particle { position:fixed; pointer-events:none; z-index:999; width:5px; height:5px; border-radius:50%; animation:burst .85s ease-out forwards; }
+    @keyframes burst { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0} }
+  </style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+
+<!-- INTRO -->
+<div class="screen active" id="intro-screen">
+  <div class="sigil">🔮</div>
+  <h1>ARKANUM</h1>
+  <p style="font-style:italic;color:#b89a6a;margin-bottom:.4rem;z-index:1">Multi-Objekt Magie</p>
+  <p style="font-style:italic;color:#9a6050;font-size:.85rem;max-width:340px;line-height:1.7;z-index:1;margin-bottom:1.5rem;">
+    Fotografiere bis zu 5 Objekte. Die App erkennt sie und zeigt magische Effekte!
+  </p>
+  <button class="btn-gold" style="z-index:1" onclick="showScreen('setup-screen')">✦ Objekte einrichten ✦</button>
+</div>
+
+<!-- SETUP -->
+<div class="screen" id="setup-screen" style="justify-content:flex-start;padding-top:1rem;">
+  <div class="setup-header" style="z-index:1;width:100%;max-width:480px;text-align:center;margin-bottom:1rem;">
+    <h2>Magische Objekte</h2>
+    <p>Tippe auf ein Feld um die Kamera zu öffnen</p>
+  </div>
+  <div class="targets-grid" style="z-index:1">
+    <div class="target-card" id="card-0" onclick="openCamera(0)">
+      <img class="tc-preview" id="prev-0" alt=""/>
+      <div class="tc-icon" id="icon-0">📷</div>
+      <span class="tc-name">Objekt 1</span>
+      <span class="tc-effect" id="eff-0">Tippe zum Fotografieren</span>
+    </div>
+    <div class="target-card" id="card-1" onclick="openCamera(1)">
+      <img class="tc-preview" id="prev-1" alt=""/>
+      <div class="tc-icon" id="icon-1">📷</div>
+      <span class="tc-name">Objekt 2</span>
+      <span class="tc-effect" id="eff-1">Tippe zum Fotografieren</span>
+    </div>
+    <div class="target-card" id="card-2" onclick="openCamera(2)">
+      <img class="tc-preview" id="prev-2" alt=""/>
+      <div class="tc-icon" id="icon-2">📷</div>
+      <span class="tc-name">Objekt 3</span>
+      <span class="tc-effect" id="eff-2">Tippe zum Fotografieren</span>
+    </div>
+    <div class="target-card" id="card-3" onclick="openCamera(3)">
+      <img class="tc-preview" id="prev-3" alt=""/>
+      <div class="tc-icon" id="icon-3">📷</div>
+      <span class="tc-name">Objekt 4</span>
+      <span class="tc-effect" id="eff-3">Tippe zum Fotografieren</span>
+    </div>
+    <div class="target-card" id="card-4" onclick="openCamera(4)" style="grid-column:1/-1;">
+      <img class="tc-preview" id="prev-4" alt="" style="height:60px;"/>
+      <div class="tc-icon" id="icon-4">📷</div>
+      <span class="tc-name">Objekt 5 (optional)</span>
+      <span class="tc-effect" id="eff-4">Tippe zum Fotografieren</span>
+    </div>
+  </div>
+
+  <div class="effect-editor" style="z-index:1">
+    <div style="font-family:'Cinzel Decorative',cursive;font-size:.6rem;color:var(--gold);margin-bottom:.6rem;letter-spacing:.1em;">AKTIVES OBJEKT BEARBEITEN</div>
+    <label>Objekt-Name</label>
+    <input type="text" id="edit-name" placeholder="z.B. Lego Schloss" oninput="updateActive('name',this.value)">
+    <label>AR-Effekt</label>
+    <select id="edit-effect" onchange="updateActive('effect',this.value)">
+      <option value="rune">🔮 Schwebende Runen</option>
+      <option value="crystal">💎 Kristall-Portal</option>
+      <option value="fire">🔥 Magisches Feuer</option>
+      <option value="key">🗝️ Geisterschlüssel</option>
+      <option value="scroll">📜 Altes Pergament</option>
+    </select>
+    <label>Geheimer Hinweis</label>
+    <input type="text" id="edit-hint" placeholder="z.B. Hogwarts verbirgt ein Geheimnis..." oninput="updateActive('hint',this.value)">
+    <label>Rune / Code</label>
+    <input type="text" id="edit-code" placeholder="z.B. ᚨᛖᛏ" oninput="updateActive('code',this.value)">
+  </div>
+
+  <button class="btn-gold" id="btn-start" style="z-index:1" onclick="startAR()" disabled>✦ AR starten ✦</button>
+  <button class="btn-outline" style="z-index:1" onclick="showScreen('intro-screen')">← Zurück</button>
+  <div style="height:1rem"></div>
+</div>
+
+<!-- KAMERA -->
+<div class="screen" id="cam-screen" style="padding:0;background:#000;">
+  <video id="cam-video" autoplay playsinline muted style="position:fixed;inset:0;width:100%;height:100vh;object-fit:cover;"></video>
+  <div class="cam-ui">
+    <div id="cam-label" style="font-family:'Cinzel Decorative',cursive;font-size:.75rem;color:var(--gold);letter-spacing:.15em;">Objekt fotografieren</div>
+    <button class="shoot-btn" onclick="takePhoto()">📷</button>
+    <div id="cam-selector" style="display:none;flex-wrap:wrap;gap:6px;justify-content:center;max-width:360px;"></div>
+    <button onclick="closeCamera()" style="background:transparent;border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.7);font-size:.8rem;padding:.5rem 1.5rem;border-radius:16px;cursor:pointer;">✕ Abbrechen</button>
+  </div>
+</div>
+
+<!-- ANALYSE -->
+<div class="screen" id="analyse-screen">
+  <div class="analyse-icon">⚗️</div>
+  <div style="font-family:'Cinzel Decorative',cursive;color:var(--gold);font-size:.9rem;" id="analyse-title">Magie wird gewoben...</div>
+  <div style="font-style:italic;color:#b89a6a;font-size:.85rem;" id="analyse-sub">Objekte werden analysiert</div>
+  <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
+  <div id="prog-pct" style="font-family:monospace;font-size:.8rem;color:var(--glow);">0%</div>
+</div>
+
+<!-- AR -->
+<div class="screen" id="ar-screen">
+  <video id="ar-video" autoplay playsinline muted></video>
+  <canvas id="ar-canvas"></canvas>
+  <div id="hud">
+    <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+    <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+    <div class="hud-title">✦ ARKANUM – Magisches Auge ✦</div>
+    <div id="rune-dots"></div>
+    <div class="scan-hint" id="scan-hint">Richte die Kamera auf ein Objekt ✦</div>
+    <!-- Empfindlichkeit Slider -->
+    <div id="sensitivity-wrap">
+      <label>Empfindlichkeit</label>
+      <input type="range" id="sens-slider" min="1" max="10" value="6" oninput="updateSens(this.value)">
+      <span id="sens-val" style="font-size:.65rem;color:var(--glow);font-family:monospace;">6</span>
+    </div>
+  </div>
+  <div id="found-panel">
+    <div class="fp-icon" id="fp-icon">🔮</div>
+    <div class="fp-title" id="fp-title">Entdeckt!</div>
+    <div class="fp-hint"  id="fp-hint">...</div>
+    <div class="fp-code"  id="fp-code">ᚨᛖᛏ</div>
+    <button class="btn-close" onclick="closePanel()">✦ Weitersuchen ✦</button>
+  </div>
+  <div id="victory">
+    <div style="font-size:3rem;filter:drop-shadow(0 0 15px gold);animation:float 3s ease-in-out infinite;">✨</div>
+    <div class="v-title">Das Tor öffnet sich!</div>
+    <div style="font-style:italic;color:#c8b090;font-size:.85rem;">Alle Objekte entdeckt!</div>
+    <div class="v-word">AETERNITAS</div>
+    <button class="btn-outline" style="max-width:200px;margin-top:.5rem" onclick="location.reload()">↺ Neu starten</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+<script>
+// Stars
+(function(){
+  const c=document.getElementById('stars');
+  for(let i=0;i<70;i++){
+    const s=document.createElement('div'); s.className='star';
+    const sz=Math.random()*2+.5;
+    s.style.cssText=`width:${sz}px;height:${sz}px;top:${Math.random()*100}%;left:${Math.random()*100}%;--d:${2+Math.random()*4}s;--delay:${Math.random()*5}s`;
+    c.appendChild(s);
+  }
+})();
+
+// State
+const targets = Array.from({length:5},(_,i)=>({
+  id:i, image:null, imgEl:null,
+  name:`Objekt ${i+1}`,
+  effect:['rune','crystal','fire','key','scroll'][i],
+  hint:['Ein uraltes Geheimnis liegt verborgen...','Das Portal öffnet sich dem Würdigen...','Das Feuer der Wahrheit brennt ewig...','Drei Schlüssel, eine Tür...','Die Worte der Alten flüstern...'][i],
+  code:['ᚨᛖᛏ','ᛖᚱᚾ','ᛁᛏᚨ','ᛋᚩᛚ','ᚠᚢᚦ'][i],
+  icon:['🔮','💎','🔥','🗝️','📜'][i],
+  found:false
+}));
+
+const effectIcons={rune:'🔮',crystal:'💎',fire:'🔥',key:'🗝️',scroll:'📜'};
+let activeCard=-1, panelOpen=false, foundCount=0;
+let camStream=null, currentCamIdx=-1, allCameras=[], activeCamId=null;
+let sensitivity=6;
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── Kamera ──────────────────────────────────────
+async function openCamera(idx){
+  currentCamIdx=idx;
+  document.getElementById('cam-label').textContent=`Objekt ${idx+1} fotografieren`;
+  showScreen('cam-screen');
+  try{
+    const tmp=await navigator.mediaDevices.getUserMedia({video:true});
+    tmp.getTracks().forEach(t=>t.stop());
+  }catch(e){}
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    allCameras=devices.filter(d=>d.kind==='videoinput');
+    buildCamSelector();
+    const startId=allCameras.length>0?allCameras[allCameras.length-1].deviceId:null;
+    await startCamById(startId);
+  }catch(e){ await startCamById(null); }
+}
+
+function buildCamSelector(){
+  const sel=document.getElementById('cam-selector');
+  sel.innerHTML='';
+  if(allCameras.length<=1){sel.style.display='none';return;}
+  sel.style.display='flex';
+  allCameras.forEach((cam,i)=>{
+    const lc=(cam.label||'').toLowerCase();
+    const label=lc.includes('back')||lc.includes('rear')||lc.includes('environment')?`📷 Hinten`
+      :lc.includes('front')||lc.includes('user')?`🤳 Vorne`:`Kamera ${i+1}`;
+    const btn=document.createElement('button');
+    btn.id=`cambtn-${cam.deviceId}`;
+    btn.textContent=label;
+    btn.style.cssText='background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:white;font-size:.75rem;padding:.4rem .9rem;border-radius:16px;cursor:pointer;';
+    btn.onclick=()=>startCamById(cam.deviceId);
+    sel.appendChild(btn);
+  });
+}
+
+async function startCamById(deviceId){
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());}
+  activeCamId=deviceId;
+  allCameras.forEach(c=>{
+    const b=document.getElementById(`cambtn-${c.deviceId}`);
+    if(b)b.style.background=c.deviceId===deviceId?'rgba(201,168,76,.6)':'rgba(255,255,255,.15)';
+  });
+  try{
+    const constraints=deviceId
+      ?{video:{deviceId:{exact:deviceId},width:{ideal:1280},height:{ideal:720}}}
+      :{video:{width:{ideal:1280},height:{ideal:720}}};
+    camStream=await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('cam-video').srcObject=camStream;
+  }catch(e){
+    try{
+      camStream=await navigator.mediaDevices.getUserMedia({video:true});
+      document.getElementById('cam-video').srcObject=camStream;
+    }catch(e2){alert('Kamera Fehler: '+e2.message);showScreen('setup-screen');}
+  }
+}
+
+function takePhoto(){
+  const video=document.getElementById('cam-video');
+  const canvas=document.createElement('canvas');
+  canvas.width=video.videoWidth||640;
+  canvas.height=video.videoHeight||480;
+  canvas.getContext('2d').drawImage(video,0,0);
+  const url=canvas.toDataURL('image/jpeg',0.95);
+  const img=new Image();
+  img.onload=()=>{
+    targets[currentCamIdx].image=url;
+    targets[currentCamIdx].imgEl=img;
+    const prev=document.getElementById(`prev-${currentCamIdx}`);
+    prev.src=url; prev.classList.add('show');
+    document.getElementById(`icon-${currentCamIdx}`).style.display='none';
+    document.getElementById(`card-${currentCamIdx}`).classList.add('loaded');
+    document.getElementById(`card-${currentCamIdx}`).style.outline='2px solid var(--gold)';
+    document.getElementById(`eff-${currentCamIdx}`).textContent='✓ Foto aufgenommen';
+    selectCard(currentCamIdx);
+    checkReady();
+  };
+  img.src=url;
+  closeCamera();
+  showScreen('setup-screen');
+}
+
+function closeCamera(){
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  document.getElementById('cam-video').srcObject=null;
+}
+
+function selectCard(idx){
+  document.querySelectorAll('.target-card').forEach(c=>c.style.outline='');
+  document.getElementById(`card-${idx}`).style.outline='2px solid var(--gold)';
+  activeCard=idx;
+  const t=targets[idx];
+  document.getElementById('edit-name').value=t.name;
+  document.getElementById('edit-effect').value=t.effect;
+  document.getElementById('edit-hint').value=t.hint;
+  document.getElementById('edit-code').value=t.code;
+}
+
+function updateActive(key,val){
+  if(activeCard<0)return;
+  targets[activeCard][key]=val;
+  if(key==='effect')targets[activeCard].icon=effectIcons[val];
+}
+
+function checkReady(){
+  const n=targets.filter(t=>t.image).length;
+  const btn=document.getElementById('btn-start');
+  btn.disabled=n<1;
+  btn.textContent=n<1?'✦ Mindestens 1 Foto nötig ✦':`✦ ${n} Objekt${n>1?'e':''} – AR starten ✦`;
+}
+
+// ── AR mit eigenem Colour-Histogram Matcher ──────
+// Wir verwenden einen robusten Farb-Histogramm Vergleich
+// der viel toleranter ist als Feature-Point Erkennung
+
+let arRunning=false;
+let matchThreshold=0.72;
+
+function updateSens(v){
+  sensitivity=parseInt(v);
+  document.getElementById('sens-val').textContent=v;
+  // Höher = empfindlicher (niedrigerer Schwellwert)
+  matchThreshold=0.85-(sensitivity*0.04);
+}
+
+async function startAR(){
+  showScreen('analyse-screen');
+  setProgress(20,'Bilder werden vorbereitet...');
+
+  const loadedTargets=targets.filter(t=>t.image);
+
+  // Erstelle Histogramme für jedes Target
+  for(let i=0;i<loadedTargets.length;i++){
+    const t=loadedTargets[i];
+    t.histogram=computeHistogram(t.imgEl);
+    t.dominantColors=getDominantColors(t.imgEl);
+    setProgress(20+((i+1)/loadedTargets.length)*60, `Objekt ${i+1} analysiert...`);
+    await sleep(300);
+  }
+
+  setProgress(90,'Kamera wird gestartet...');
+  await sleep(400);
+
+  // AR Kamera starten
+  const arVideo=document.getElementById('ar-video');
+  try{
+    const constraints=activeCamId
+      ?{video:{deviceId:{exact:activeCamId},width:{ideal:1280},height:{ideal:720}}}
+      :{video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}};
+    const stream=await navigator.mediaDevices.getUserMedia(constraints);
+    arVideo.srcObject=stream;
+    await new Promise(r=>arVideo.onloadedmetadata=r);
+    arVideo.play();
+  }catch(e){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:true});
+      arVideo.srcObject=stream;
+      await new Promise(r=>arVideo.onloadedmetadata=r);
+      arVideo.play();
+    }catch(e2){alert('Kamera Fehler: '+e2.message);showScreen('setup-screen');return;}
+  }
+
+  setProgress(100,'Bereit!');
+  await sleep(400);
+
+  showScreen('ar-screen');
+
+  // Rune dots aufbauen
+  const dotsEl=document.getElementById('rune-dots');
+  dotsEl.innerHTML='';
+  loadedTargets.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='rdot'; d.id=`rdot-${i}`;
+    dotsEl.appendChild(d);
+  });
+
+  // Canvas
+  const canvas=document.getElementById('ar-canvas');
+  canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;';
+  const ctx=canvas.getContext('2d');
+
+  function resizeCanvas(){
+    canvas.width=arVideo.videoWidth||window.innerWidth;
+    canvas.height=arVideo.videoHeight||window.innerHeight;
+    canvas.style.width=window.innerWidth+'px';
+    canvas.style.height=window.innerHeight+'px';
+  }
+  resizeCanvas();
+  window.addEventListener('resize',resizeCanvas);
+
+  arRunning=true;
+  const t0=Date.now();
+  let lastMatch=-1, matchFrames=0, noMatchFrames=0;
+
+  async function arLoop(){
+    if(!arRunning)return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Hole aktuellen Frame
+    const frameCanvas=document.createElement('canvas');
+    frameCanvas.width=160; frameCanvas.height=120;
+    const fCtx=frameCanvas.getContext('2d');
+    fCtx.drawImage(arVideo,0,0,160,120);
+
+    // Vergleiche mit allen Targets
+    let bestMatch=-1, bestScore=0;
+    for(let i=0;i<loadedTargets.length;i++){
+      if(loadedTargets[i].found)continue;
+      const score=compareHistogram(frameCanvas,loadedTargets[i].histogram,loadedTargets[i].dominantColors);
+      if(score>bestScore){bestScore=score;bestMatch=i;}
+    }
+
+    const W=canvas.width, H=canvas.height;
+    const t=(Date.now()-t0)/1000;
+
+    if(bestScore>matchThreshold){
+      if(lastMatch===bestMatch){
+        matchFrames++;
+      } else {
+        lastMatch=bestMatch; matchFrames=1; noMatchFrames=0;
+      }
+      // Nach 8 stabilen Frames → Effekt zeigen
+      if(matchFrames>=8){
+        drawEffect(ctx,loadedTargets[bestMatch],W,H,t);
+        document.getElementById('scan-hint').textContent='✦ '+loadedTargets[bestMatch].name+' erkannt! ✦';
+        if(matchFrames===8 && !panelOpen){
+          triggerFound(loadedTargets[bestMatch],bestMatch);
+        }
+      }
+    } else {
+      noMatchFrames++;
+      if(noMatchFrames>15){lastMatch=-1;matchFrames=0;}
+      document.getElementById('scan-hint').textContent='Richte die Kamera auf ein Objekt ✦';
+    }
+
+    setTimeout(arLoop,80);
+  }
+  arLoop();
+}
+
+// ── Histogramm Berechnung ──────────────────────
+function computeHistogram(imgEl){
+  const c=document.createElement('canvas');
+  c.width=64;c.height=64;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(imgEl,0,0,64,64);
+  const data=ctx.getImageData(0,0,64,64).data;
+  const h={r:new Array(32).fill(0),g:new Array(32).fill(0),b:new Array(32).fill(0)};
+  for(let i=0;i<data.length;i+=4){
+    h.r[Math.floor(data[i]/8)]++;
+    h.g[Math.floor(data[i+1]/8)]++;
+    h.b[Math.floor(data[i+2]/8)]++;
+  }
+  // Normalisieren
+  const total=64*64;
+  h.r=h.r.map(v=>v/total);
+  h.g=h.g.map(v=>v/total);
+  h.b=h.b.map(v=>v/total);
+  return h;
+}
+
+function getDominantColors(imgEl){
+  const c=document.createElement('canvas');
+  c.width=32;c.height=32;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(imgEl,0,0,32,32);
+  const data=ctx.getImageData(0,0,32,32).data;
+  const colors=[];
+  for(let i=0;i<data.length;i+=4){
+    colors.push([data[i],data[i+1],data[i+2]]);
+  }
+  return colors;
+}
+
+function compareHistogram(frameCanvas,targetH,targetColors){
+  const ctx=frameCanvas.getContext('2d');
+  const data=ctx.getImageData(0,0,frameCanvas.width,frameCanvas.height).data;
+  const fh={r:new Array(32).fill(0),g:new Array(32).fill(0),b:new Array(32).fill(0)};
+  const total=frameCanvas.width*frameCanvas.height;
+  for(let i=0;i<data.length;i+=4){
+    fh.r[Math.floor(data[i]/8)]++;
+    fh.g[Math.floor(data[i+1]/8)]++;
+    fh.b[Math.floor(data[i+2]/8)]++;
+  }
+  fh.r=fh.r.map(v=>v/total);
+  fh.g=fh.g.map(v=>v/total);
+  fh.b=fh.b.map(v=>v/total);
+
+  // Bhattacharyya Koeffizient
+  let score=0;
+  for(let i=0;i<32;i++){
+    score+=Math.sqrt(fh.r[i]*targetH.r[i]);
+    score+=Math.sqrt(fh.g[i]*targetH.g[i]);
+    score+=Math.sqrt(fh.b[i]*targetH.b[i]);
+  }
+  return score/3;
+}
+
+// ── AR Effekte ─────────────────────────────────
+function drawEffect(ctx,target,W,H,t){
+  const cx=W/2, cy=H/2;
+  const size=Math.min(W,H)*0.38;
+
+  ctx.save();
+  ctx.translate(cx,cy);
+
+  // Goldener Rahmen
+  const hs=size*0.55, arm=size*0.18;
+  ctx.strokeStyle='rgba(201,168,76,0.9)';
+  ctx.lineWidth=3;
+  [[-hs,-hs],[hs,-hs],[-hs,hs],[hs,hs]].forEach(([x,y])=>{
+    ctx.beginPath();
+    ctx.moveTo(x+(x>0?-arm:arm),y);
+    ctx.lineTo(x,y);
+    ctx.lineTo(x,y+(y>0?-arm:arm));
+    ctx.stroke();
+  });
+
+  // Lila Füllung
+  ctx.fillStyle='rgba(124,58,237,0.12)';
+  ctx.fillRect(-hs,-hs,hs*2,hs*2);
+
+  // Rotierender Ring
+  ctx.save();
+  ctx.rotate(t*0.6);
+  ctx.strokeStyle='rgba(168,85,247,0.5)';
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([6,6]);
+  ctx.beginPath();
+  ctx.arc(0,0,size*0.46,0,Math.PI*2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Effekt-spezifisch
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  switch(target.effect){
+    case 'rune':
+      ctx.font=`${size*0.22}px serif`;
+      ctx.fillStyle=`rgba(168,85,247,${0.7+Math.sin(t*2)*0.3})`;
+      ctx.fillText('ᚨᛖᛏ',0,-size*0.1);
+      ctx.font=`${size*0.13}px serif`;
+      ctx.fillStyle='rgba(240,208,128,0.9)';
+      ctx.fillText(target.code,0,size*0.15);
+      break;
+    case 'fire':
+      ctx.font=`${size*0.35}px serif`;
+      ctx.fillText('🔥',Math.sin(t*4)*4,Math.sin(t*2)*6);
+      break;
+    case 'crystal':
+      ctx.font=`${size*0.3}px serif`;
+      ctx.fillText('💎',0,Math.sin(t*1.5)*size*0.06);
+      break;
+    case 'key':
+      ctx.save();ctx.rotate(Math.sin(t)*0.12);
+      ctx.font=`${size*0.3}px serif`;
+      ctx.fillText('🗝️',0,0);ctx.restore();
+      break;
+    case 'scroll':
+      ctx.font=`${size*0.28}px serif`;
+      ctx.fillText('📜',0,Math.sin(t*1.8)*size*0.06);
+      break;
+  }
+
+  // Name oben
+  ctx.font=`500 ${size*0.1}px 'Cinzel Decorative',serif`;
+  ctx.fillStyle='rgba(240,208,128,0.95)';
+  ctx.fillText(target.name,0,-size*0.54);
+
+  ctx.restore();
+}
+
+// ── Found ──────────────────────────────────────
+function triggerFound(target,idx){
+  if(panelOpen)return;
+  panelOpen=true; foundCount++;
+  document.getElementById('fp-icon').textContent=target.icon;
+  document.getElementById('fp-title').textContent=target.name+' entdeckt!';
+  document.getElementById('fp-hint').textContent=target.hint;
+  document.getElementById('fp-code').textContent=target.code;
+  document.getElementById('found-panel').classList.add('show');
+  document.getElementById(`rdot-${idx}`)?.classList.add('lit');
+  spawnParticles();
+  const loaded=targets.filter(t=>t.image).length;
+  if(foundCount>=loaded){
+    setTimeout(()=>{
+      document.getElementById('found-panel').classList.remove('show');
+      document.getElementById('victory').classList.add('show');
+      spawnParticles();spawnParticles();
+    },2500);
+  }
+}
+
+function closePanel(){
+  document.getElementById('found-panel').classList.remove('show');
+  panelOpen=false;
+}
+
+function setProgress(pct,txt){
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-pct').textContent=txt;
+}
+
+function spawnParticles(){
+  const colors=['#a855f7','#f0d080','#c9a84c','#7c3aed','#e879f9'];
+  const cx=window.innerWidth/2,cy=window.innerHeight*0.6;
+  for(let i=0;i<22;i++){
+    const p=document.createElement('div');p.className='particle';
+    const a=Math.random()*Math.PI*2,d=60+Math.random()*120;
+    p.style.cssText=`left:${cx}px;top:${cy}px;background:${colors[Math.floor(Math.random()*colors.length)]};--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px`;
+    document.body.appendChild(p);setTimeout(()=>p.remove(),900);
+  }
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+checkReady();
+</script>
+</body>
+</html>
